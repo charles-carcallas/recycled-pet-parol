@@ -626,7 +626,7 @@
         <span class="swatch" style="background: #38c96b;"></span>Emerald PET
       </button>
       <button class="design-btn christmas" id="btn-design-christmas" data-design="christmas" type="button">
-        <span class="swatch" style="background: linear-gradient(135deg, #e02432, #ffd23f);"></span>Red &amp; Gold Christmas
+        <span class="swatch" style="background: linear-gradient(135deg, #e02432 0%, #ffd23f 55%, #2ecc52 100%);"></span>Red &amp; Gold Christmas
       </button>
     </div>
     <div class="hud-divider"></div>
@@ -1446,22 +1446,28 @@
       outerMajorMat: sunYellowStarMat,
       outerMinorMat: crimsonStarMat,
       baySideBottleMat: crimsonPetMat,
-      bayCenterBottleMat: goldPetMat,
+      bayCenterBottleMat: emeraldPetMat,
       haloRimMat: sunYellowPetMat,
       haloBottleA: crimsonPetMat,
       haloBottleB: goldPetMat,
+      haloBottlePattern: [crimsonPetMat, emeraldPetMat, goldPetMat, crimsonPetMat, goldPetMat, emeraldPetMat, crimsonPetMat],
       capA: bottleCapGoldMat,
       capB: bottleCapRedMat,
+      seamCapA: bottleCapGreenMat,
+      seamCapB: bottleCapGoldMat,
       rosetteCenter: goldPetMat,
       rosetteA: crimsonPetMat,
       rosetteB: sunYellowPetMat,
+      rosetteOuterA: emeraldPetMat,
+      rosetteOuterB: limeEmeraldPetMat,
       rosetteDimple: sunYellowPetMat,
       tailRingA: crimsonPetMat,
       tailRingB: goldPetMat,
+      tailRingPattern: [crimsonPetMat, goldPetMat, emeraldPetMat, goldPetMat, crimsonPetMat],
       tailHelix: sunYellowPetMat,
       tailClaspCap: bottleCapGoldMat,
       outerBell: [crimsonPetMat, goldPetMat, bottleCapGoldMat],
-      innerBell: [goldPetMat, crimsonPetMat, bottleCapRedMat],
+      innerBell: [emeraldPetMat, goldPetMat, bottleCapRedMat],
       lightColor: 0xffcc66,
       centerLightColor: 0xffd27a
     };
@@ -1781,9 +1787,10 @@
         for (let b = 0; b < numBottles; b++) {
           const frac = (b + 0.5) / numBottles - 0.5;
           const fanAngle = frac * Math.PI * 0.84;
+          const bottleMat = p.haloBottlePattern ? p.haloBottlePattern[b] : ((b % 2 === 0) ? p.haloBottleA : p.haloBottleB);
           const cutBottle = instantiateCutBottle(
             haloBottleParts,
-            (b % 2 === 0) ? p.haloBottleA : p.haloBottleB,
+            bottleMat,
             0.82
           );
           const hubOff = 0.010;
@@ -1797,7 +1804,9 @@
         }
 
         // Bottle cap cluster clamping the 7 fanned bottlenecks at the arch seam
-        const seamCap = createBottleCapMesh(0.0155, 0.013, (i % 2 === 0) ? p.capA : p.capB);
+        const seamCapA = p.seamCapA || p.capA;
+        const seamCapB = p.seamCapB || p.capB;
+        const seamCap = createBottleCapMesh(0.0155, 0.013, (i % 2 === 0) ? seamCapA : seamCapB);
         seamCap.position.set(0, 0.008, 0.013);
         archGroup.add(seamCap);
       }
@@ -1894,6 +1903,8 @@
       }
 
       // 8 Outer perimeter bottle bottoms tucked snugly into the 8 inner-star corners
+      const outerRosetteA = p.rosetteOuterA || p.rosetteA;
+      const outerRosetteB = p.rosetteOuterB || p.rosetteB;
       for (let i = 0; i < 8; i++) {
         const a = Math.PI / 2 + i * (Math.PI / 4);
         const r = 0.114;
@@ -1904,7 +1915,7 @@
           -0.66 * Math.sin(a),
           0.66 * Math.cos(a),
           a,
-          (i % 2 === 0) ? p.rosetteA : p.rosetteB,
+          (i % 2 === 0) ? outerRosetteA : outerRosetteB,
           0.86
         );
       }
@@ -1932,9 +1943,10 @@
 
         for (let l = 0; l < numLinks; l++) {
           const ly = chainTopY - (l + 0.5) * linkSpan;
+          const ringMat = p.tailRingPattern ? p.tailRingPattern[l] : ((l % 2 === 0) ? p.tailRingA : p.tailRingB);
           const ring = new THREE.Mesh(
             new THREE.TorusGeometry(0.022, 0.0038, 8, 20),
-            (l % 2 === 0) ? p.tailRingA : p.tailRingB
+            ringMat
           );
           ring.position.set(attachX, ly, 0.0);
           ring.rotation.y = (l % 2 === 0) ? 0.15 : Math.PI / 2 - 0.15;
@@ -2378,24 +2390,24 @@
         `
       },
       christmas: {
-        sub: 'Red & Gold 8-Pt Inner • 16-Pt Outer • Cut Bottle Halo',
+        sub: 'Red, Gold & Green • 8-Pt Inner • 16-Pt Outer Halo',
         layers: {
           stick:   { dot: '#d8b24c', name: 'Supporting Stick (1.5m)',  meta: 'Bamboo spine, cross-braces & gold tie wire' },
-          star:    { dot: '#ffc824', name: 'Inner & Outer 3D Stars',   meta: '8-pt gold inner + 24× red/gold bottles + 16-pt outer' },
-          halo:    { dot: '#d91e2a', name: 'Outer Scalloped Halo',     meta: '8 fan arches (56× red & gold cut bottles) + caps' },
-          rosette: { dot: '#f0b829', name: 'Centerpiece Rosette',      meta: '27× red & gold 5-lobed bottle bottoms' },
-          tails:   { dot: '#e02836', name: 'Traditional Parol Tails',  meta: 'Red & gold chains, spirals & 4× bottle bells' },
+          star:    { dot: '#ffc824', name: 'Inner & Outer 3D Stars',   meta: '8-pt gold inner + 24× red/green bottles + 16-pt outer' },
+          halo:    { dot: '#d91e2a', name: 'Outer Scalloped Halo',     meta: '8 fan arches (56× red, gold & green bottles) + caps' },
+          rosette: { dot: '#f0b829', name: 'Centerpiece Rosette',      meta: '19× red/gold + 8× emerald border bottle bottoms' },
+          tails:   { dot: '#e02836', name: 'Traditional Parol Tails',  meta: 'Red/gold/green chains, spirals & 4× bottle bells' },
           leds:    { dot: '#ffd173', name: 'Internal Dim Lighting',    meta: 'Low-intensity warm golden-white LEDs' }
         },
-        guideTitle: 'DIY Build Sequence (Red & Gold Edition)',
+        guideTitle: 'DIY Build Sequence (Red, Gold & Green)',
         guideBody: `
-          <div>Materials: ~40× crimson-red &amp; ~40× golden-yellow cut PET bottle tops/bodies, ~27× red/gold 5-lobed bottle bottoms, 1× 1.50m bamboo pole (3.4cm Ø), gold tie wire &amp; warm LEDs.</div>
+          <div>Materials: ~40× crimson-red, ~24× emerald-green &amp; ~16× gold/yellow cut PET bottles, ~27× red/gold/green 5-lobed bottle bottoms, 1× 1.50m bamboo pole, gold tie wire &amp; warm LEDs.</div>
           <ol class="guide-steps">
             <li><span class="step-num">01</span><span class="step-text"><strong>1.5m Bamboo Spine:</strong> Lash horizontal &amp; diagonal brace sticks onto the 1.50m pole using gold tie wire.</span></li>
-            <li><span class="step-num">02</span><span class="step-text"><strong>Inner Star &amp; 24 Cut Bottles:</strong> Wire the golden 8-point inner star inside the 0.55m ring and fill each bay with 2 crimson + 1 gold radial cut bottles.</span></li>
+            <li><span class="step-num">02</span><span class="step-text"><strong>Inner Star &amp; 24 Cut Bottles:</strong> Wire the golden 8-point inner star inside the 0.55m ring and fill each bay with 2 crimson flanking 1 emerald-green bottle.</span></li>
             <li><span class="step-num">03</span><span class="step-text"><strong>Outer 16-Pt Star &amp; LEDs:</strong> Mount 16 faceted 3D pyramidal points (alternating sun-yellow &amp; crimson) around the ring with warm LEDs inside.</span></li>
-            <li><span class="step-num">04</span><span class="step-text"><strong>Cut-Bottle Scalloped Halo:</strong> Wire 8 fan arches of 7 alternating red &amp; gold cut plastic bottles each around the outer star; cap seams in gold &amp; red.</span></li>
-            <li><span class="step-num">05</span><span class="step-text"><strong>Lobed-Bottom Center &amp; Tails:</strong> Fill the inner star center with 27× red &amp; gold 5-lobed bottoms; hang red/gold chains &amp; bottle bells down to -0.74m.</span></li>
+            <li><span class="step-num">04</span><span class="step-text"><strong>Cut-Bottle Scalloped Halo:</strong> Wire 8 fan arches of 7 symmetrical red, green &amp; gold cut bottles each around the outer star; cap seams in green, gold &amp; red.</span></li>
+            <li><span class="step-num">05</span><span class="step-text"><strong>Lobed-Bottom Center &amp; Tails:</strong> Fill the center with 19× red/gold bottoms framed by 8× emerald bottoms; hang red/gold/green chains &amp; bells down to -0.74m.</span></li>
           </ol>
         `
       }
