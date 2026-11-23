@@ -99,9 +99,9 @@
       background: transparent;
       color: var(--text-muted);
       font-family: inherit;
-      font-size: 12px;
+      font-size: 11.5px;
       font-weight: 500;
-      padding: 6px 11px;
+      padding: 5px 9px;
       border-radius: 999px;
       cursor: pointer;
       white-space: nowrap;
@@ -118,6 +118,18 @@
       background: var(--accent);
       font-weight: 600;
       box-shadow: 0 2px 10px rgba(56, 201, 107, 0.3);
+    }
+
+    .pill-btn.modular-btn {
+      border-color: rgba(242, 190, 92, 0.38);
+      color: #ffe29a;
+    }
+
+    .pill-btn.modular-btn.active {
+      background: linear-gradient(135deg, #e03232, #f2be5c);
+      color: #140806;
+      border-color: transparent;
+      box-shadow: 0 2px 10px rgba(224, 50, 50, 0.35);
     }
 
     .mode-switch {
@@ -635,6 +647,7 @@
       <button class="pill-btn" data-view="front">Front View</button>
       <button class="pill-btn" data-view="side">Side Profile View</button>
       <button class="pill-btn" data-view="back">Back View</button>
+      <button class="pill-btn modular-btn" data-view="modularUnit" title="Inspect 3D Modular Star Point &amp; Load-Bearing Struts">Modular Star Unit</button>
     </div>
     <div class="hud-divider"></div>
     <div class="mode-switch" role="group" aria-label="Lighting Mode">
@@ -668,14 +681,22 @@
         </div>
       </section>
 
-      <!-- 1.5m Ruler Overlay -->
-      <section class="hud-section">
+      <!-- 1.5m Ruler & Bamboo Exact Measurements Overlays -->
+      <section class="hud-section" style="gap: 6px;">
         <label class="toggle-row" for="toggle-ruler">
           <div class="toggle-label">
             <span>1.5m Dimension Ruler</span>
             <span>Shows 1.50m height, stick &amp; halo scale</span>
           </div>
           <input class="layer-checkbox" id="toggle-ruler" type="checkbox" checked />
+        </label>
+
+        <label class="toggle-row" for="toggle-bamboo-cm" style="background: rgba(224, 56, 56, 0.11); border-color: rgba(242, 130, 92, 0.34);">
+          <div class="toggle-label">
+            <span style="color: #ffb899;">3D Bamboo Exact cm &amp; Tukod</span>
+            <span>X-ray PET &amp; show all frame/star cm callouts</span>
+          </div>
+          <input class="layer-checkbox" id="toggle-bamboo-cm" type="checkbox" />
         </label>
       </section>
 
@@ -1159,6 +1180,20 @@
       envMapIntensity: 0.65
     });
 
+    const loadStrutMat = new THREE.MeshStandardMaterial({
+      color: 0xd93829,
+      roughness: 0.42,
+      metalness: 0.15,
+      envMapIntensity: 0.45
+    });
+
+    const bambooRibMat = new THREE.MeshStandardMaterial({
+      color: 0xd6b06a,
+      roughness: 0.55,
+      metalness: 0.05,
+      envMapIntensity: 0.35
+    });
+
     const petMaterials = [
       clearPetMat, emeraldPetMat, limeEmeraldPetMat, frostedPetMat,
       clearStarMat, emeraldStarMat, limeStarMat,
@@ -1167,7 +1202,7 @@
     ];
     const standardMaterials = [
       bottleCapGreenMat, bottleCapWhiteMat, bambooMat, wireFrameMat, darkWireMat,
-      bottleCapRedMat, bottleCapGoldMat, goldWireMat
+      bottleCapRedMat, bottleCapGoldMat, goldWireMat, loadStrutMat, bambooRibMat
     ];
 
     // =========================================================================
@@ -1639,6 +1674,17 @@
         holder.add(createSegmentRod(apexB, baseR, 0.0018, curRibMat, 6));
         holder.add(createSegmentRod(baseL, tip, 0.0022, curRibMat, 6));
         holder.add(createSegmentRod(baseR, tip, 0.0022, curRibMat, 6));
+
+        // Internal Load-Bearing Expansion Cross-Struts (Tukod) to prevent pinching & flattening
+        const midBase = new THREE.Vector3().addVectors(baseL, baseR).multiplyScalar(0.5);
+        const midApex = new THREE.Vector3().addVectors(apexF, apexB).multiplyScalar(0.5);
+        holder.add(createSegmentRod(baseL, baseR, 0.0028, loadStrutMat, 6));
+        holder.add(createSegmentRod(apexF, apexB, 0.0030, loadStrutMat, 6));
+        holder.add(createSegmentRod(midBase, midApex, 0.0024, loadStrutMat, 6));
+
+        const lashingKnot = new THREE.Mesh(new THREE.SphereGeometry(0.0044, 8, 8), goldWireMat);
+        lashingKnot.position.copy(midApex);
+        holder.add(lashingKnot);
       }
 
       if (majorPos.length > 0) {
@@ -2261,6 +2307,151 @@
     const rulerRefs = buildDimensionRuler();
 
     // =========================================================================
+    // 8B. 3D BAMBOO EXACT MEASUREMENTS OVERLAY & 3.2x MODULAR STAR SPECIMEN
+    // =========================================================================
+    const bambooMeasureGroup = new THREE.Group();
+    bambooMeasureGroup.visible = false;
+    scene.add(bambooMeasureGroup);
+
+    const modularSpecimenGroup = new THREE.Group();
+    modularSpecimenGroup.visible = false;
+    scene.add(modularSpecimenGroup);
+
+    function createLeaderCallout(parentGroup, targetPt, badgePt, title, subtitle, accentColor = '#f2be5c', badgeWidth = 0.27) {
+      const lineMat = new THREE.LineBasicMaterial({ color: accentColor, transparent: true, opacity: 0.88 });
+      const lineGeom = new THREE.BufferGeometry().setFromPoints([targetPt, badgePt]);
+      parentGroup.add(new THREE.Line(lineGeom, lineMat));
+
+      const dotMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(0.007, 8, 8),
+        new THREE.MeshBasicMaterial({ color: accentColor })
+      );
+      dotMesh.position.copy(targetPt);
+      parentGroup.add(dotMesh);
+
+      const sprite = createTextBadgeSprite(title, subtitle, accentColor);
+      const aspect = sprite.scale.x / sprite.scale.y;
+      sprite.scale.set(badgeWidth, badgeWidth / aspect, 1);
+      sprite.position.copy(badgePt);
+      parentGroup.add(sprite);
+      return sprite;
+    }
+
+    function buildBambooMeasureOverlay() {
+      const cGold = '#f2be5c';
+      const cRed = '#ff6b5b';
+      const cGreen = '#5cd88a';
+
+      // Back Bamboo Spine & Cross-Braces
+      createLeaderCallout(bambooMeasureGroup, new THREE.Vector3(0, 0.66, STICK_Z), new THREE.Vector3(0.24, 0.71, 0.02), '150.0 cm', 'Main Bamboo Spine Ø3.4cm', cGold, 0.26);
+      createLeaderCallout(bambooMeasureGroup, new THREE.Vector3(-0.34, PAROL_CENTER_Y, -0.052), new THREE.Vector3(-0.48, -0.52, -0.04), '86.0 cm', 'Horizontal Cross-Brace ×1', cGold, 0.27);
+      createLeaderCallout(bambooMeasureGroup, new THREE.Vector3(-0.27, 0.39, -0.052), new THREE.Vector3(-0.48, 0.57, -0.04), '84.0 cm', 'Diagonal X-Braces ×2', cGold, 0.26);
+      createLeaderCallout(bambooMeasureGroup, new THREE.Vector3(-0.22, -0.09, -0.052), new THREE.Vector3(-0.52, -0.14, -0.04), '44.0 cm', 'Upper/Lower Struts ×2', cGold, 0.26);
+
+      // Circular Hoops & Scalloped Arches
+      createLeaderCallout(bambooMeasureGroup, new THREE.Vector3(0.24, -0.04, 0.0), new THREE.Vector3(0.50, -0.52, 0.02), '55.0 cm Ø', '172.8 cm Dividing Ring ×2', cGreen, 0.28);
+      createLeaderCallout(bambooMeasureGroup, new THREE.Vector3(-0.412, 0.08, 0.0), new THREE.Vector3(-0.53, 0.05, 0.02), '82.4 cm Ø', '258.9 cm Halo Inner Ring', cGreen, 0.28);
+      createLeaderCallout(bambooMeasureGroup, new THREE.Vector3(0.22, -0.11, -0.048), new THREE.Vector3(0.38, -0.68, -0.03), '63.0 cm Ø', '197.9 cm Back Ring', cGreen, 0.26);
+      createLeaderCallout(bambooMeasureGroup, new THREE.Vector3(0.0, 0.00, 0.048), new THREE.Vector3(0.0, -0.64, 0.04), '24.4 cm Ø', '76.7 cm Rosette Ring', cGreen, 0.26);
+      createLeaderCallout(bambooMeasureGroup, new THREE.Vector3(0.48, 0.44, 0.0), new THREE.Vector3(0.84, 0.64, 0.02), '52.8 cm arc', 'Scalloped Arch R=16.8cm ×8', cGreen, 0.28);
+
+      // Modular Star Points & Internal Load-Bearing Tukod Struts
+      createLeaderCallout(bambooMeasureGroup, new THREE.Vector3(0.36, 0.22, 0.015), new THREE.Vector3(0.86, 0.47, 0.02), '18.81 cm', 'Major Side ×16 | Spine 14.19cm', cGold, 0.29);
+      createLeaderCallout(bambooMeasureGroup, new THREE.Vector3(-0.15, 0.48, 0.015), new THREE.Vector3(-0.20, 0.71, 0.02), '15.02 cm', 'Minor Side ×16 | Spine 10.57cm', cGold, 0.26);
+      createLeaderCallout(bambooMeasureGroup, new THREE.Vector3(0.275, 0.12, 0.0), new THREE.Vector3(0.86, 0.09, 0.02), '10.73 cm', 'Outer Load Spreader (×16)', cRed, 0.29);
+      createLeaderCallout(bambooMeasureGroup, new THREE.Vector3(0.318, 0.04, 0.045), new THREE.Vector3(0.86, -0.08, 0.05), '10.00 cm', 'Outer Z-Tukod Strut (×16)', cRed, 0.29);
+      createLeaderCallout(bambooMeasureGroup, new THREE.Vector3(-0.21, 0.24, 0.02), new THREE.Vector3(-0.52, 0.43, 0.02), '16.27 cm', 'Inner Side ×16 | Spine 11.72cm', cGold, 0.29);
+      createLeaderCallout(bambooMeasureGroup, new THREE.Vector3(-0.14, 0.15, 0.035), new THREE.Vector3(-0.53, 0.25, 0.04), '9.95 cm', 'Inner Spreader | Tukod 10.40cm', cRed, 0.29);
+    }
+
+    function buildModularSpecimenUnit() {
+      const unitHolder = new THREE.Group();
+      unitHolder.position.set(0, 0.04, 0);
+      modularSpecimenGroup.add(unitHolder);
+
+      // 3.2x Magnified Modular 3D Star Point Diamond matching the user's diagram
+      const tip   = new THREE.Vector3(0.0,  0.44,  0.0);
+      const baseL = new THREE.Vector3(-0.22, -0.08, 0.0);
+      const baseR = new THREE.Vector3( 0.22, -0.08, 0.0);
+      const apexF = new THREE.Vector3(0.0, -0.16,  0.17);
+      const apexB = new THREE.Vector3(0.0, -0.16, -0.16);
+      const midBase = new THREE.Vector3(0.0, -0.08, 0.0);
+      const midApex = new THREE.Vector3(0.0, -0.16, 0.005);
+
+      // Translucent ghosted PET skin panels so internal load-bearing struts shine through
+      const specSkinMat = new THREE.MeshPhysicalMaterial({
+        color: 0xffe694,
+        transparent: true,
+        opacity: 0.24,
+        roughness: 0.18,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+
+      const tris = [
+        baseL, apexF, baseR,
+        baseL, tip, apexF,
+        apexF, tip, baseR,
+        baseL, baseR, apexB,
+        baseL, apexB, tip,
+        apexB, baseR, tip
+      ];
+      const skinArr = [];
+      for (const v of tris) skinArr.push(v.x, v.y, v.z);
+      const skinGeom = new THREE.BufferGeometry();
+      skinGeom.setAttribute('position', new THREE.Float32BufferAttribute(skinArr, 3));
+      skinGeom.computeVertexNormals();
+      unitHolder.add(new THREE.Mesh(skinGeom, specSkinMat));
+
+      // Split-Bamboo outer edge & ridge sticks
+      const rEdge = 0.0065;
+      const rRidge = 0.0055;
+      unitHolder.add(createSegmentRod(tip, baseL, rEdge, bambooMat, 10));
+      unitHolder.add(createSegmentRod(tip, baseR, rEdge, bambooMat, 10));
+      unitHolder.add(createSegmentRod(tip, apexF, rRidge, bambooMat, 10));
+      unitHolder.add(createSegmentRod(tip, apexB, rRidge, bambooMat, 10));
+      unitHolder.add(createSegmentRod(apexF, baseL, rRidge, bambooMat, 10));
+      unitHolder.add(createSegmentRod(apexF, baseR, rRidge, bambooMat, 10));
+      unitHolder.add(createSegmentRod(apexB, baseL, rRidge, bambooMat, 10));
+      unitHolder.add(createSegmentRod(apexB, baseR, rRidge, bambooMat, 10));
+
+      // BOLD RED Load-Bearing Expansion Cross-Struts ("Tukod")
+      unitHolder.add(createSegmentRod(baseL, baseR, 0.0085, loadStrutMat, 12));
+      unitHolder.add(createSegmentRod(apexF, apexB, 0.0085, loadStrutMat, 12));
+      unitHolder.add(createSegmentRod(midBase, midApex, 0.0065, loadStrutMat, 10));
+
+      // Gold lashing knots at joints & dividing-ring attachment arc
+      for (const jp of [tip, baseL, baseR, apexF, apexB, midBase, midApex]) {
+        const knot = new THREE.Mesh(new THREE.SphereGeometry(0.011, 10, 10), goldWireMat);
+        knot.position.copy(jp);
+        unitHolder.add(knot);
+      }
+
+      // Segment of the 55.0 cm Ø Dividing Ring wire passing beneath baseL & baseR
+      const ringArcPts = [];
+      for (let i = -6; i <= 6; i++) {
+        const x = (i / 6) * 0.34;
+        const y = -0.08 - (0.045 * (x * x) / (0.22 * 0.22));
+        ringArcPts.push(new THREE.Vector3(x, y + 0.045 - 0.045, 0.0));
+      }
+      for (let i = 0; i < ringArcPts.length - 1; i++) {
+        unitHolder.add(createSegmentRod(ringArcPts[i], ringArcPts[i + 1], 0.0045, wireFrameMat, 8));
+      }
+
+      // Crisp 3D Dimension Callouts matching the user's diagram (all clear of HUD panels)
+      createLeaderCallout(unitHolder, tip, new THREE.Vector3(0.22, 0.45, 0.02), 'Tip of the Star', 'Locked by 2 Edges + 2 Spines', '#f2be5c', 0.28);
+      createLeaderCallout(unitHolder, new THREE.Vector3(-0.11, 0.18, 0.0), new THREE.Vector3(-0.33, 0.28, 0.02), '18.81 cm (Major)', 'Minor 15.02 | Inner 16.27 cm', '#5cd88a', 0.29);
+      createLeaderCallout(unitHolder, new THREE.Vector3(0.0, 0.14, 0.085), new THREE.Vector3(0.38, 0.24, 0.05), '14.19 cm Front', 'Back 14.05 | Inner 11.72 cm', '#5cd88a', 0.29);
+      createLeaderCallout(unitHolder, new THREE.Vector3(0.11, -0.08, 0.0), new THREE.Vector3(0.41, -0.03, 0.02), '10.73 cm Lateral', 'LOAD-BEARING SPREADER (Inner 9.95cm)', '#ff6b5b', 0.31);
+      createLeaderCallout(unitHolder, new THREE.Vector3(0.0, -0.16, 0.11), new THREE.Vector3(-0.34, -0.11, 0.06), '10.00 cm Z-Tukod', 'LOAD-BEARING DEPTH (Inner 10.40cm)', '#ff6b5b', 0.31);
+      createLeaderCallout(unitHolder, new THREE.Vector3(0.11, -0.12, 0.085), new THREE.Vector3(0.26, -0.34, 0.05), '8.90 cm Bevels', 'Back 8.67 | Inner 9.11/8.64 cm', '#f2be5c', 0.29);
+      createLeaderCallout(unitHolder, baseL, new THREE.Vector3(-0.31, -0.34, 0.02), '55.0 cm Ø Ring', 'Lash Base Corners onto Ring', '#5cd88a', 0.28);
+    }
+
+    buildBambooMeasureOverlay();
+    buildModularSpecimenUnit();
+
+    // =========================================================================
     // 9. STUDIO & EVENING LIGHTING RIGS
     // =========================================================================
     const hemiLight = new THREE.HemisphereLight(0x9ec0f5, 0x1b241d, 0.25);
@@ -2322,13 +2513,47 @@
       threeQuarter: { pos: new THREE.Vector3(1.58, 0.32, 2.28), target: new THREE.Vector3(0, -0.02, 0) },
       front:        { pos: new THREE.Vector3(0.0, -0.02, 2.76), target: new THREE.Vector3(0, -0.02, 0) },
       side:         { pos: new THREE.Vector3(2.74, -0.02, 0.0), target: new THREE.Vector3(0, -0.02, 0) },
-      back:         { pos: new THREE.Vector3(0.0, -0.02, -2.76), target: new THREE.Vector3(0, -0.02, 0) }
+      back:         { pos: new THREE.Vector3(0.0, -0.02, -2.76), target: new THREE.Vector3(0, -0.02, 0) },
+      modularUnit:  { pos: new THREE.Vector3(0.44, 0.16, 1.92), target: new THREE.Vector3(0, 0.02, 0) }
     };
 
+    let currentViewName = 'threeQuarter';
+    let currentDesignId = 'emerald';
     let cameraAnim = null;
+
+    function refreshGuideCard() {
+      const cfg = DESIGN_CONFIGS[currentDesignId] || DESIGN_CONFIGS.emerald;
+      const showCuttingSpec = document.getElementById('toggle-bamboo-cm').checked || (currentViewName === 'modularUnit');
+      if (showCuttingSpec) {
+        document.getElementById('guide-title').textContent = 'Exact Bamboo & Tukod Cutting List (cm)';
+        document.getElementById('guide-body').innerHTML = `
+          <div>Every length is exact to the 1.50 m model (add +1.5 cm for bamboo lashings, +8 cm for wire hoop twists):</div>
+          <ol class="guide-steps">
+            <li><span class="step-num">SP</span><span class="step-text"><strong>Back Spine &amp; Braces:</strong> Pole <strong>150.0 cm</strong>; H-Brace <strong>86.0 cm</strong>; X-Braces ×2 <strong>84.0 cm</strong>; Struts ×2 <strong>44.0 cm</strong>.</span></li>
+            <li><span class="step-num">RG</span><span class="step-text"><strong>Hoops (#12 GI Wire):</strong> Dividing ×2 <strong>55.0 cm Ø</strong> (172.8 cm); Halo <strong>82.4 cm Ø</strong> (258.9 cm); Back <strong>63.0 cm Ø</strong>; Arch ×8 <strong>52.8 cm</strong>.</span></li>
+            <li><span class="step-num">IN</span><span class="step-text"><strong>Inner 8-Pt Star:</strong> Octagon <strong>9.95 cm</strong>; Side <strong>16.27 cm</strong>; Spines <strong>11.72 / 11.36 cm</strong>; Tukod Z <strong>10.40 cm</strong>.</span></li>
+            <li><span class="step-num">MJ</span><span class="step-text"><strong>Outer Major (×8):</strong> Base <strong>10.73 cm</strong>; Side <strong>18.81 cm</strong>; Spines <strong>14.19 / 14.05 cm</strong>; Bevels <strong>8.90 / 8.67 cm</strong>; Tukod Z <strong>10.00 cm</strong>.</span></li>
+            <li><span class="step-num">MN</span><span class="step-text"><strong>Outer Minor (×8):</strong> Base <strong>10.73 cm</strong>; Side <strong>15.02 cm</strong>; Spines <strong>10.57 / 10.38 cm</strong>; Tukod Z <strong>10.00 cm</strong>.</span></li>
+          </ol>
+        `;
+      } else {
+        document.getElementById('guide-title').textContent = cfg.guideTitle;
+        document.getElementById('guide-body').innerHTML = cfg.guideBody;
+      }
+    }
+
     function transitionToPreset(name) {
       const preset = CAMERA_PRESETS[name];
       if (!preset) return;
+      currentViewName = name;
+      const isModular = (name === 'modularUnit');
+
+      parolRoot.visible = !isModular;
+      modularSpecimenGroup.visible = isModular;
+      rulerGroup.visible = !isModular && document.getElementById('toggle-ruler').checked;
+      bambooMeasureGroup.visible = !isModular && document.getElementById('toggle-bamboo-cm').checked;
+      explodeGuidesGroup.visible = !isModular && (currentExplode > 0.03);
+
       cameraAnim = {
         startPos: camera.position.clone(),
         endPos: preset.pos.clone(),
@@ -2339,6 +2564,7 @@
       document.querySelectorAll('[data-view]').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.view === name);
       });
+      refreshGuideCard();
     }
 
     // Smooth Exploded View Interpolation
@@ -2414,6 +2640,7 @@
     };
 
     function setActiveDesign(designId) {
+      currentDesignId = designId;
       const isChristmas = (designId === 'christmas');
       design1Root.visible = !isChristmas;
       design2Root.visible = isChristmas;
@@ -2429,12 +2656,11 @@
         document.getElementById(`name-${key}`).textContent = info.name;
         document.getElementById(`meta-${key}`).textContent = info.meta;
       }
-      document.getElementById('guide-title').textContent = cfg.guideTitle;
-      document.getElementById('guide-body').innerHTML = cfg.guideBody;
 
       rulerRefs.starSpanLineEmerald.visible = !isChristmas;
       rulerRefs.starSpanLineChristmas.visible = isChristmas;
 
+      refreshGuideCard();
       updateExplodedOffsets(currentExplode);
     }
 
@@ -2510,7 +2736,37 @@
 
     const toggleRuler = document.getElementById('toggle-ruler');
     toggleRuler.addEventListener('change', () => {
-      rulerGroup.visible = toggleRuler.checked;
+      rulerGroup.visible = toggleRuler.checked && (currentViewName !== 'modularUnit');
+    });
+
+    // Save baseline PET material settings so X-ray Bamboo Measurement Mode toggles cleanly
+    const petBaseProps = petMaterials.map(m => ({
+      opacity: m.opacity,
+      transmission: m.transmission,
+      depthWrite: m.depthWrite
+    }));
+
+    function setBambooBlueprintMode(enabled) {
+      petMaterials.forEach((m, idx) => {
+        const base = petBaseProps[idx];
+        if (enabled) {
+          m.opacity = 0.14;
+          m.transmission = 0.12;
+          m.depthWrite = false;
+        } else {
+          m.opacity = base.opacity;
+          m.transmission = base.transmission;
+          m.depthWrite = base.depthWrite;
+        }
+        m.needsUpdate = true;
+      });
+      bambooMeasureGroup.visible = enabled && (currentViewName !== 'modularUnit');
+      refreshGuideCard();
+    }
+
+    const toggleBambooCm = document.getElementById('toggle-bamboo-cm');
+    toggleBambooCm.addEventListener('change', () => {
+      setBambooBlueprintMode(toggleBambooCm.checked);
     });
 
     // Collapsible HUD panels
